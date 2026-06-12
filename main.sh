@@ -29,16 +29,23 @@ PATH_EDGE_RESTRICTIONS_HISTORY="$(cd "$(dirname "$0")" && pwd)"
 commit_if_new() {
   cd "${PATH_EDGE_RESTRICTIONS_HISTORY}"
 
-  # Nothing to commit?
-  if ! git diff --quiet HEAD -- MicrosoftEdge_restrictions_history/; then
-    # Check if only logs.txt has changed — if so, skip commit
-    local CHANGED_FILES
-    CHANGED_FILES="$(git diff --name-only HEAD -- MicrosoftEdge_restrictions_history/ | grep -v 'logs\.txt$' || true)"
+    # Detect any changes (tracked modifications + untracked files/folders)
+  local STATUS_OUTPUT
+  STATUS_OUTPUT="$(git status --porcelain -- MicrosoftEdge_restrictions_history/)"
 
-    if [[ -z "${CHANGED_FILES}" ]]; then
-      echo "Only logs.txt has changed — skipping commit."
-      return 0
-    fi
+  if [[ -z "${STATUS_OUTPUT}" ]]; then
+    echo "No changes since last commit — skipping."
+    return 0
+  fi
+
+    # Check if only logs.txt has changed — if so, skip commit
+  local CHANGED_FILES
+  CHANGED_FILES="$(echo "${STATUS_OUTPUT}" | grep -v 'logs\.txt$' || true)"
+
+  if [[ -z "${CHANGED_FILES}" ]]; then
+    echo "Only logs.txt has changed — skipping commit."
+    return 0
+  fi
 
     # Detect the latest version folder
     local LATEST_MSEDGE_RESTRICTIONS_DIRNAME
@@ -64,9 +71,6 @@ commit_if_new() {
     git commit -m "${MSEDGE_APK_VERSION}"
 
     git push
-  else
-    echo "No changes since last commit — skipping."
-  fi
 }
 
 # ── Main ────────────────────────────────────────────────────────────────────
@@ -77,9 +81,8 @@ cd "${PATH_EDGE_RESTRICTIONS_EXTRACTOR}"
 
 # Copy extracted data (excluding .apk) into the history repo
 rsync -av --exclude '*.apk' \
-  "${PATH_EDGE_RESTRICTIONS_EXTRACTOR}/PlaystoreDL_MicrosoftEdge/" \
-  "${PATH_EDGE_RESTRICTIONS_HISTORY}/MicrosoftEdge_restrictions_history/"
+   "${PATH_EDGE_RESTRICTIONS_EXTRACTOR}/PlaystoreDL_MicrosoftEdge/" \
+   "${PATH_EDGE_RESTRICTIONS_HISTORY}/MicrosoftEdge_restrictions_history/"
 
 # Attempt to commit & push any new version
 commit_if_new
-
