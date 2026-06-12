@@ -1,8 +1,29 @@
 #!/bin/bash
 set -euo pipefail
 
-PATH_EDGE_RESTRICTIONS_EXTRACTOR="/home/pi/Workspace/msedge-apk-restrictions-extract"
-PATH_EDGE_RESTRICTIONS_HISTORY="/home/pi/Workspace/msedge-apk-restrictions-history"
+# ── Parse arguments ────────────────────────────────────────────────────────────
+extractor_path=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --extractor-path)
+      extractor_path="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "${extractor_path}" ]]; then
+  echo "Error: --extractor-path is required" >&2
+  exit 1
+fi
+
+PATH_EDGE_RESTRICTIONS_EXTRACTOR="${extractor_path}"
+PATH_EDGE_RESTRICTIONS_HISTORY="$(cd "$(dirname "$0")" && pwd)"
 
 # ── Helper: commit & push the latest extracted version ──────────────────────
 commit_if_new() {
@@ -10,6 +31,15 @@ commit_if_new() {
 
   # Nothing to commit?
   if ! git diff --quiet HEAD -- MicrosoftEdge_restrictions_history/; then
+    # Check if only logs.txt has changed — if so, skip commit
+    local CHANGED_FILES
+    CHANGED_FILES="$(git diff --name-only HEAD -- MicrosoftEdge_restrictions_history/ | grep -v 'logs\.txt$' || true)"
+
+    if [[ -z "${CHANGED_FILES}" ]]; then
+      echo "Only logs.txt has changed — skipping commit."
+      return 0
+    fi
+
     # Detect the latest version folder
     local LATEST_MSEDGE_RESTRICTIONS_DIRNAME
 
